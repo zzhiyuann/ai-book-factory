@@ -68,14 +68,24 @@ export function getBooks(): StoredBook[] {
   }
 }
 
-export function saveBook(book: Omit<StoredBook, "id" | "createdAt">): StoredBook {
+export function saveBook(book: Omit<StoredBook, "createdAt"> & { id?: string }): StoredBook {
+  const bookId = book.id || `book_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const books = getBooks();
+
+  // If book with this ID already exists, update it
+  const existingIdx = books.findIndex((b) => b.id === bookId);
   const stored: StoredBook = {
     ...book,
-    id: `book_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    createdAt: new Date().toISOString(),
+    id: bookId,
+    createdAt: existingIdx >= 0 ? books[existingIdx].createdAt : new Date().toISOString(),
   };
-  const books = getBooks();
-  books.unshift(stored); // newest first
+
+  if (existingIdx >= 0) {
+    books[existingIdx] = stored;
+  } else {
+    books.unshift(stored); // newest first
+  }
+
   localStorage.setItem(BOOKS_KEY, JSON.stringify(books));
   return stored;
 }
