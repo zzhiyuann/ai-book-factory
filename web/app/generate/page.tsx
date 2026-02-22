@@ -500,14 +500,41 @@ function DoneStep({
 }) {
   const [showReader, setShowReader] = useState(false);
 
-  function downloadHtml() {
-    const css = `body{font-family:Georgia,serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.7;color:#1a1a1a}h1{font-size:2em;color:#0a3d62;border-bottom:1px solid #ccc;padding-bottom:.3em}h2{font-size:1.5em;color:#1e5f8a;border-bottom:1px solid #eee;padding-bottom:.2em}h3{font-size:1.2em;color:#2c3e50}blockquote{border-left:3px solid #0a3d62;padding-left:1em;color:#555;font-style:italic}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px;font-size:.9em}pre{background:#f4f4f4;padding:1em;border-radius:4px;overflow:auto}strong{color:#0a3d62}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:.5em}th{background:#f0f4f8}`;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${options.topic}</title><style>${css}</style></head><body>${markdownToHtml(content)}</body></html>`;
-    const blob = new Blob([html], { type: "text/html" });
+  const filename = options.topic.replace(/\s+/g, "_");
+
+  function download(format: "html" | "md" | "pdf") {
+    if (format === "md") {
+      const blob = new Blob([content], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${filename}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const css = `body{font-family:Georgia,serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.7;color:#1a1a1a}h1{font-size:2em;color:#0a3d62;border-bottom:1px solid #ccc;padding-bottom:.3em}h2{font-size:1.5em;color:#1e5f8a;border-bottom:1px solid #eee;padding-bottom:.2em}h3{font-size:1.2em;color:#2c3e50}blockquote{border-left:3px solid #0a3d62;padding-left:1em;color:#555;font-style:italic}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px;font-size:.9em}pre{background:#f4f4f4;padding:1em;border-radius:4px;overflow:auto}strong{color:#0a3d62}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:.5em}th{background:#f0f4f8}@media print{body{max-width:100%;margin:0;padding:1cm}}`;
+    const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${options.topic}</title><style>${css}</style></head><body>${markdownToHtml(content)}</body></html>`;
+
+    if (format === "pdf") {
+      // Open styled HTML in new tab — user can Ctrl/Cmd+P to print/save as PDF
+      const win = window.open("", "_blank");
+      if (win) {
+        win.document.write(htmlContent);
+        win.document.close();
+        // Auto-trigger print dialog after a brief pause
+        setTimeout(() => win.print(), 500);
+      }
+      return;
+    }
+
+    // HTML download
+    const blob = new Blob([htmlContent], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${options.topic.replace(/\s+/g, "_")}.html`;
+    a.download = `${filename}.html`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -535,9 +562,11 @@ function DoneStep({
           <button onClick={() => setShowReader(false)} className="btn-ghost">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
-          <button onClick={downloadHtml} className="btn-ghost">
-            <Download className="w-4 h-4" /> Download HTML
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => download("html")} className="btn-ghost text-xs">HTML</button>
+            <button onClick={() => download("md")} className="btn-ghost text-xs">Markdown</button>
+            <button onClick={() => download("pdf")} className="btn-ghost text-xs">PDF</button>
+          </div>
         </div>
         <article
           className="prose prose-lg font-serif"
@@ -561,14 +590,28 @@ function DoneStep({
         {wordCount.toLocaleString()} words · {templateInfo[options.template].label}
       </p>
 
-      <div className="flex items-center justify-center gap-4 mb-10">
-        <button onClick={() => setShowReader(true)} className="btn-primary">
-          <Eye className="w-4 h-4" /> Read Now
-        </button>
-        <button onClick={downloadHtml}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-surface border border-border rounded-xl text-sm font-medium text-ink hover:border-ink/30 transition-colors">
-          <Download className="w-4 h-4" /> Download HTML
-        </button>
+      {/* Primary action */}
+      <button onClick={() => setShowReader(true)} className="btn-primary mb-6">
+        <Eye className="w-4 h-4" /> Read Now
+      </button>
+
+      {/* Download options */}
+      <div className="mb-10">
+        <p className="text-xs text-muted mb-3">Download as</p>
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={() => download("html")}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-surface border border-border rounded-xl text-sm font-medium text-ink hover:border-ink/30 transition-colors">
+            <Download className="w-4 h-4" /> HTML
+          </button>
+          <button onClick={() => download("md")}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-surface border border-border rounded-xl text-sm font-medium text-ink hover:border-ink/30 transition-colors">
+            <Download className="w-4 h-4" /> Markdown
+          </button>
+          <button onClick={() => download("pdf")}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-surface border border-border rounded-xl text-sm font-medium text-ink hover:border-ink/30 transition-colors">
+            <Download className="w-4 h-4" /> PDF
+          </button>
+        </div>
       </div>
 
       <div className="border-t border-border-light pt-8 mt-4 flex items-center justify-center gap-6">

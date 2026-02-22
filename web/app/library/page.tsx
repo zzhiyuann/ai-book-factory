@@ -29,14 +29,38 @@ export default function LibraryPage() {
     setBooks(getBooks());
   }
 
-  function downloadHtml(book: StoredBook) {
-    const css = `body{font-family:Georgia,serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.7;color:#1a1a1a}h1{font-size:2em;color:#0a3d62;border-bottom:1px solid #ccc;padding-bottom:.3em}h2{font-size:1.5em;color:#1e5f8a;border-bottom:1px solid #eee;padding-bottom:.2em}h3{font-size:1.2em;color:#2c3e50}blockquote{border-left:3px solid #0a3d62;padding-left:1em;color:#555;font-style:italic}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px;font-size:.9em}pre{background:#f4f4f4;padding:1em;border-radius:4px;overflow:auto}strong{color:#0a3d62}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:.5em}th{background:#f0f4f8}`;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${book.title}</title><style>${css}</style></head><body>${markdownToHtml(book.content)}</body></html>`;
-    const blob = new Blob([html], { type: "text/html" });
+  function downloadBook(book: StoredBook, format: "html" | "md" | "pdf") {
+    const filename = book.title.replace(/\s+/g, "_");
+
+    if (format === "md") {
+      const blob = new Blob([book.content], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${filename}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const css = `body{font-family:Georgia,serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.7;color:#1a1a1a}h1{font-size:2em;color:#0a3d62;border-bottom:1px solid #ccc;padding-bottom:.3em}h2{font-size:1.5em;color:#1e5f8a;border-bottom:1px solid #eee;padding-bottom:.2em}h3{font-size:1.2em;color:#2c3e50}blockquote{border-left:3px solid #0a3d62;padding-left:1em;color:#555;font-style:italic}code{background:#f4f4f4;padding:.1em .3em;border-radius:2px;font-size:.9em}pre{background:#f4f4f4;padding:1em;border-radius:4px;overflow:auto}strong{color:#0a3d62}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:.5em}th{background:#f0f4f8}@media print{body{max-width:100%;margin:0;padding:1cm}}`;
+    const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${book.title}</title><style>${css}</style></head><body>${markdownToHtml(book.content)}</body></html>`;
+
+    if (format === "pdf") {
+      const win = window.open("", "_blank");
+      if (win) {
+        win.document.write(htmlContent);
+        win.document.close();
+        setTimeout(() => win.print(), 500);
+      }
+      return;
+    }
+
+    const blob = new Blob([htmlContent], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${book.title.replace(/\s+/g, "_")}.html`;
+    a.download = `${filename}.html`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -51,9 +75,11 @@ export default function LibraryPage() {
               <ArrowLeft className="w-4 h-4" /> Back to Library
             </button>
             <span className="text-sm font-medium truncate max-w-xs">{readingBook.title}</span>
-            <button onClick={() => downloadHtml(readingBook)} className="btn-ghost">
-              <Download className="w-4 h-4" /> Download
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => downloadBook(readingBook, "html")} className="btn-ghost text-xs">HTML</button>
+              <button onClick={() => downloadBook(readingBook, "md")} className="btn-ghost text-xs">MD</button>
+              <button onClick={() => downloadBook(readingBook, "pdf")} className="btn-ghost text-xs">PDF</button>
+            </div>
           </div>
         </header>
         <div className="max-w-3xl mx-auto px-6 py-12">
@@ -128,14 +154,26 @@ export default function LibraryPage() {
                     <Eye className="w-3 h-3" /> Read
                   </button>
                   <button
-                    onClick={() => downloadHtml(book)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cream text-xs font-medium text-muted hover:text-ink transition-colors"
+                    onClick={() => downloadBook(book, "html")}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cream text-xs font-medium text-muted hover:text-ink transition-colors"
                   >
-                    <Download className="w-3 h-3" /> Download
+                    HTML
+                  </button>
+                  <button
+                    onClick={() => downloadBook(book, "md")}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cream text-xs font-medium text-muted hover:text-ink transition-colors"
+                  >
+                    MD
+                  </button>
+                  <button
+                    onClick={() => downloadBook(book, "pdf")}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cream text-xs font-medium text-muted hover:text-ink transition-colors"
+                  >
+                    PDF
                   </button>
                   <button
                     onClick={() => handleDelete(book.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-muted/50 hover:text-red-500 hover:bg-red-50 transition-colors ml-auto"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted/50 hover:text-red-500 hover:bg-red-50 transition-colors ml-auto"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
