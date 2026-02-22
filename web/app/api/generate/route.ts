@@ -1,51 +1,101 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { buildWebPrompt, type GenerateRequest } from "@/lib/prompt-builder";
 
-/**
- * POST /api/generate
- *
- * Accepts user profile + topic + options, queues a book generation job.
- * In the MVP, this is a stub. In production, this would:
- * 1. Validate input
- * 2. Build the prompt (reusing core/prompt-builder from CLI package)
- * 3. Queue generation via Claude API (not CLI) for SaaS
- * 4. Return a job ID for polling
- */
+export const maxDuration = 300; // 5 minutes for Vercel Pro
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { user, topic, template, language } = body;
 
     if (!topic || !user?.name) {
-      return NextResponse.json(
-        { error: "Topic and user name are required" },
-        { status: 400 }
+      return new Response(
+        JSON.stringify({ error: "Topic and user name are required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // TODO: In production:
-    // 1. Authenticate user
-    // 2. Check rate limits / subscription
-    // 3. Build prompt using prompt-builder
-    // 4. Queue generation job (Bull/Redis or similar)
-    // 5. Return job ID
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const req: GenerateRequest = {
+      user,
+      topic,
+      template: template || "comprehensive",
+      language: language || "en",
+    };
 
-    return NextResponse.json({
-      jobId,
-      status: "queued",
-      message: "Book generation queued. Poll /api/generate/status?id=JOB_ID for progress.",
-      meta: {
-        topic,
-        template: template || "comprehensive",
-        language: language || "en",
-        estimatedMinutes: template === "deep-dive" ? 15 : template === "quick-read" ? 5 : 10,
+    const prompt = buildWebPrompt(req);
+
+    const client = new Anthropic({ apiKey });
+
+    // Stream the response
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Send initial event
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "start", topic, template: req.template })}\n\n`)
+          );
+
+          const response = await client.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 16000,
+            stream: true,
+            messages: [{ role: "user", content: prompt }],
+          });
+
+          let fullText = "";
+
+          for await (const event of response) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              const text = event.delta.text;
+              fullText += text;
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ type: "text", text })}\n\n`)
+              );
+            }
+          }
+
+          // Send completion event with full text
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: "done", wordCount: fullText.split(/\s+/).length })}\n\n`
+            )
+          );
+        } catch (err: any) {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: "error", error: err.message || "Generation failed" })}\n\n`
+            )
+          );
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
       },
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: "Invalid request" },
-      { status: 400 }
+    return new Response(
+      JSON.stringify({ error: "Invalid request" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
 }

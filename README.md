@@ -101,6 +101,29 @@ src/
   utils/               Logger, constants, prerequisites checker
 ```
 
+## Web App (SaaS)
+
+A zero-auth web interface is included in `web/`. Anyone can generate books — no login required. Profile and books are stored in the browser via localStorage.
+
+### Run locally
+
+```bash
+cd web
+npm install
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env.local
+npm run dev
+```
+
+### Deploy to Vercel
+
+1. Push to GitHub
+2. Import repo in Vercel
+3. Set root directory to `web`
+4. Add `ANTHROPIC_API_KEY` environment variable
+5. Deploy
+
+The web app streams book generation in real-time via SSE, supports all 4 templates, and includes an in-browser reader and HTML download.
+
 ## License
 
 MIT

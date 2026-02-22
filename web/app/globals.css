@@ -33,3 +33,176 @@
     color: var(--color-ink);
   }
 }
+
+@layer components {
+  .input {
+    display: block;
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-paper);
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    transition: all 0.15s;
+  }
+
+  .input::placeholder {
+    color: color-mix(in srgb, var(--color-muted) 50%, transparent);
+  }
+
+  .input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
+    border-color: var(--color-accent);
+  }
+
+  textarea.input {
+    min-height: 5rem;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background-color: var(--color-ink);
+    color: var(--color-paper);
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+
+  .btn-primary:hover {
+    opacity: 0.9;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: transparent;
+    color: var(--color-muted);
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+
+  .btn-ghost:hover {
+    color: var(--color-ink);
+    background-color: var(--color-cream);
+  }
+
+  /* Prose styles for book reader */
+  .prose {
+    line-height: 1.8;
+    color: var(--color-ink);
+    max-width: 65ch;
+    margin: 0 auto;
+  }
+
+  .prose h1 {
+    font-size: 2em;
+    font-weight: 700;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    color: #0a3d62;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.3em;
+  }
+
+  .prose h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin-top: 1.4em;
+    margin-bottom: 0.4em;
+    color: #1e5f8a;
+  }
+
+  .prose h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin-top: 1.2em;
+    margin-bottom: 0.3em;
+    color: #2c3e50;
+  }
+
+  .prose p {
+    margin-top: 0.75em;
+    margin-bottom: 0.75em;
+  }
+
+  .prose blockquote {
+    border-left: 3px solid #0a3d62;
+    padding-left: 1em;
+    color: #555;
+    font-style: italic;
+    margin: 1em 0;
+  }
+
+  .prose code {
+    background: #f4f4f4;
+    padding: 0.1em 0.3em;
+    border-radius: 2px;
+    font-size: 0.9em;
+  }
+
+  .prose pre {
+    background: #f4f4f4;
+    padding: 1em;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+
+  .prose pre code {
+    background: none;
+    padding: 0;
+  }
+
+  .prose ul, .prose ol {
+    padding-left: 1.5em;
+    margin: 0.75em 0;
+  }
+
+  .prose li {
+    margin: 0.25em 0;
+  }
+
+  .prose strong {
+    color: #0a3d62;
+  }
+
+  .prose hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 2em 0;
+  }
+
+  .prose table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+  }
+
+  .prose th, .prose td {
+    border: 1px solid var(--color-border);
+    padding: 0.5em 0.75em;
+    text-align: left;
+  }
+
+  .prose th {
+    background: var(--color-cream);
+    font-weight: 600;
+  }
+}

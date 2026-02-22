@@ -1,0 +1,12 @@
+web/
+.next/
+node_modules/
+test/
+.DS_Store
+*.map
+.git/
+.github/
+vercel.json
+tsconfig.json
+src/
+bin/

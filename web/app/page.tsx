@@ -346,7 +346,7 @@ function Footer() {
           <span className="text-sm font-medium">Book Factory</span>
         </div>
         <div className="flex items-center gap-6 text-sm text-muted">
-          <a href="https://github.com/ai-book-factory/ai-book-factory" className="hover:text-ink transition-colors">
+          <a href="https://github.com/zzhiyuann/ai-book-factory" className="hover:text-ink transition-colors">
             GitHub
           </a>
           <span>MIT License</span>

@@ -30,9 +30,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ai-book-factory/ai-book-factory.git"
+    "url": "git+https://github.com/zzhiyuann/ai-book-factory.git"
   },
-  "homepage": "https://github.com/ai-book-factory/ai-book-factory#readme",
+  "homepage": "https://github.com/zzhiyuann/ai-book-factory#readme",
   "author": "",
   "license": "MIT",
   "engines": {
