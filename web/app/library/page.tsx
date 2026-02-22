@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BookOpen, Plus, Search, Clock, ArrowRight, Trash2, Download, Eye, ArrowLeft, X } from "lucide-react";
+import { Search, Clock, ArrowRight, Trash2, Download, Eye, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { Navbar } from "@/components/navbar";
 import { getBooks, deleteBook, type StoredBook } from "@/lib/storage";
 import { markdownToHtml } from "@/lib/markdown-to-html";
 
@@ -67,24 +68,7 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-paper">
-      {/* Header */}
-      <header className="border-b border-border-light">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-ink flex items-center justify-center">
-              <BookOpen className="w-3.5 h-3.5 text-paper" />
-            </div>
-            <span className="text-base font-semibold">Book Factory</span>
-          </Link>
-          <Link
-            href="/generate"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-ink text-paper rounded-lg text-sm font-medium hover:bg-ink/90 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Book
-          </Link>
-        </div>
-      </header>
+      <Navbar />
 
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="flex items-end justify-between mb-8">

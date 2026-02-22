@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  BookOpen, ArrowRight, ArrowLeft, Sparkles, Check, Loader2, Download, Eye,
+  ArrowRight, ArrowLeft, Sparkles, Check, Loader2, Download, Eye,
 } from "lucide-react";
 import Link from "next/link";
+import { Navbar } from "@/components/navbar";
 import { getProfile, saveProfile, saveBook, type StoredProfile } from "@/lib/storage";
 import { markdownToHtml } from "@/lib/markdown-to-html";
 
@@ -63,7 +64,7 @@ export default function GeneratePage() {
 
   return (
     <div className="min-h-screen bg-paper">
-      <Header />
+      <Navbar />
       <ProgressBar step={step} />
 
       <div className="max-w-2xl mx-auto px-6 py-12">
@@ -108,29 +109,6 @@ export default function GeneratePage() {
         )}
       </div>
     </div>
-  );
-}
-
-// ─── Header ───
-function Header() {
-  return (
-    <header className="border-b border-border-light">
-      <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 text-muted hover:text-ink transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          <span className="text-sm">Home</span>
-        </Link>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-ink flex items-center justify-center">
-            <BookOpen className="w-3 h-3 text-paper" />
-          </div>
-          <span className="text-sm font-medium">Book Factory</span>
-        </div>
-        <Link href="/library" className="text-sm text-muted hover:text-ink transition-colors">
-          Library
-        </Link>
-      </div>
-    </header>
   );
 }
 

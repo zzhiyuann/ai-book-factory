@@ -1,32 +1,107 @@
 "use client";
 
-import { useState } from "react";
-import { BookOpen, Sparkles, Zap, Library, ArrowRight, ChevronDown, User, Brain, Send } from "lucide-react";
+import { useState, useEffect } from "react";
+import { BookOpen, Sparkles, ArrowRight, User, Brain, Send, Library, Plus } from "lucide-react";
 import Link from "next/link";
+import { getProfile, getBooks, type StoredProfile, type StoredBook } from "@/lib/storage";
 
-function Navbar() {
+// Landing page navbar (custom for this page — has section anchors)
+function LandingNav({ profile }: { profile: StoredProfile | null }) {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-paper/80 backdrop-blur-xl border-b border-border-light">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-ink flex items-center justify-center">
-            <BookOpen className="w-4.5 h-4.5 text-paper" strokeWidth={2} />
+            <BookOpen className="w-4 h-4 text-paper" strokeWidth={2} />
           </div>
           <span className="text-lg font-semibold tracking-tight">Book Factory</span>
         </div>
-        <div className="flex items-center gap-8">
-          <a href="#how" className="text-sm text-muted hover:text-ink transition-colors">How It Works</a>
-          <a href="#templates" className="text-sm text-muted hover:text-ink transition-colors">Templates</a>
-          <a href="#demo" className="text-sm text-muted hover:text-ink transition-colors">Try It</a>
-          <Link
-            href="/generate"
-            className="text-sm font-medium bg-ink text-paper px-4 py-2 rounded-lg hover:bg-ink/90 transition-colors"
-          >
-            Get Started
-          </Link>
+        <div className="flex items-center gap-6">
+          {profile ? (
+            <>
+              <Link href="/library" className="text-sm text-muted hover:text-ink transition-colors flex items-center gap-1.5">
+                <Library className="w-3.5 h-3.5" /> Library
+              </Link>
+              <Link href="/profile" className="text-sm text-muted hover:text-ink transition-colors flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center text-[10px] font-semibold text-accent">
+                  {profile.name.charAt(0).toUpperCase()}
+                </div>
+                {profile.name.split(" ")[0]}
+              </Link>
+              <Link href="/generate"
+                className="text-sm font-medium bg-ink text-paper px-4 py-2 rounded-lg hover:bg-ink/90 transition-colors flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> New Book
+              </Link>
+            </>
+          ) : (
+            <>
+              <a href="#how" className="text-sm text-muted hover:text-ink transition-colors">How It Works</a>
+              <a href="#templates" className="text-sm text-muted hover:text-ink transition-colors">Templates</a>
+              <Link href="/generate"
+                className="text-sm font-medium bg-ink text-paper px-4 py-2 rounded-lg hover:bg-ink/90 transition-colors">
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>
+  );
+}
+
+// Returning user welcome banner
+function WelcomeBack({ profile, books }: { profile: StoredProfile; books: StoredBook[] }) {
+  return (
+    <section className="pt-28 pb-12 px-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-surface rounded-2xl border border-border-light p-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-muted text-sm mb-1">Welcome back</p>
+              <h1 className="text-2xl font-bold tracking-tight mb-2">{profile.name}</h1>
+              <p className="text-muted">
+                {books.length === 0
+                  ? "Ready to generate your first book?"
+                  : `You have ${books.length} book${books.length !== 1 ? "s" : ""} in your library.`}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {books.length > 0 && (
+                <Link href="/library"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-cream border border-border-light rounded-xl text-sm font-medium text-ink hover:border-border transition-colors">
+                  <Library className="w-4 h-4" /> Your Library
+                </Link>
+              )}
+              <Link href="/generate"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-ink text-paper rounded-xl text-sm font-medium hover:bg-ink/90 transition-colors">
+                <Sparkles className="w-4 h-4" /> New Book
+              </Link>
+            </div>
+          </div>
+
+          {/* Recent books */}
+          {books.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-border-light">
+              <div className="text-xs text-muted font-medium uppercase tracking-wide mb-3">Recent</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {books.slice(0, 4).map((book) => (
+                  <Link key={book.id} href="/library"
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-cream transition-colors">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                      <BookOpen className="w-4 h-4 text-accent" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{book.title}</p>
+                      <p className="text-xs text-muted">{book.wordCount.toLocaleString()} words</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -34,13 +109,11 @@ function Hero() {
   return (
     <section className="pt-32 pb-20 px-6">
       <div className="max-w-4xl mx-auto text-center">
-        {/* Tag */}
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-glow border border-accent/20 mb-8">
           <Sparkles className="w-3.5 h-3.5 text-accent" />
           <span className="text-xs font-medium text-accent">Powered by Claude AI</span>
         </div>
 
-        {/* Headline */}
         <h1 className="text-5xl sm:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
           Your personal AI writes
           <br />
@@ -53,24 +126,22 @@ function Hero() {
           background, role, and thinking style.
         </p>
 
-        {/* CTA */}
         <div className="flex items-center justify-center gap-4 mb-16">
           <Link
-            href="/generate"
+            href="/profile"
             className="inline-flex items-center gap-2 px-6 py-3 bg-ink text-paper rounded-xl text-base font-medium hover:bg-ink/90 transition-all hover:gap-3"
           >
-            Generate Your First Book
+            Get Started
             <ArrowRight className="w-4 h-4" />
           </Link>
           <a
-            href="#demo"
+            href="#how"
             className="inline-flex items-center gap-2 px-6 py-3 bg-surface border border-border rounded-xl text-base font-medium text-ink hover:border-ink/30 transition-colors"
           >
-            See a Demo
+            How It Works
           </a>
         </div>
 
-        {/* Stats */}
         <div className="flex items-center justify-center gap-12 text-sm text-muted">
           <div>
             <span className="block text-2xl font-semibold text-ink">15,000+</span>
@@ -112,15 +183,15 @@ function HowItWorks() {
       icon: Sparkles,
       title: "AI researches & writes",
       description:
-        "Claude does deep web research, then generates a full book with real citations, frameworks, and exercises.",
+        "Claude generates a full book with real citations, frameworks, and exercises.",
       detail: "Not summaries. Real, substantive books.",
     },
     {
       icon: Send,
       title: "Read anywhere",
       description:
-        "Get your book as a beautifully styled HTML file. Read on any device, print it, or share it.",
-      detail: "Delivered to email, Telegram, or just downloaded.",
+        "Read in your browser, download as HTML, or share. Your library lives in your browser — no account needed.",
+      detail: "Zero sign-up. Everything stays on your device.",
     },
   ];
 
@@ -248,7 +319,7 @@ function DemoSection() {
     <section id="demo" className="py-24 px-6 bg-cream">
       <div className="max-w-3xl mx-auto text-center">
         <h2 className="text-3xl font-bold tracking-tight mb-4">Try it now</h2>
-        <p className="text-muted text-lg mb-10">Enter any topic and see what your book would look like.</p>
+        <p className="text-muted text-lg mb-10">Enter any topic. No sign-up required.</p>
 
         <div className="bg-surface rounded-2xl border border-border-light p-8 text-left">
           <label className="block text-sm font-medium mb-2">What do you want to learn about?</label>
@@ -297,11 +368,11 @@ function WhatMakesItDifferent() {
     },
     {
       title: "Deeply personalized",
-      description: "Your open profile is injected into every prompt. The AI knows your role, your challenges, your thinking style. No two readers get the same book."
+      description: "Your profile is injected into every prompt. The AI knows your role, your challenges, your thinking style. No two readers get the same book."
     },
     {
-      title: "Gets smarter over time",
-      description: "A knowledge graph tracks what you've learned. Each new book builds on previous ones — no repetition, deeper connections."
+      title: "No account needed",
+      description: "Everything lives in your browser. No sign-up, no passwords, no email verification. Just start generating."
     },
     {
       title: "Honest, not cheerful",
@@ -358,14 +429,38 @@ function Footer() {
 }
 
 export default function LandingPage() {
+  const [profile, setProfile] = useState<StoredProfile | null>(null);
+  const [books, setBooks] = useState<StoredBook[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setProfile(getProfile());
+    setBooks(getBooks());
+    setLoaded(true);
+  }, []);
+
+  if (!loaded) return null;
+
   return (
     <main className="min-h-screen">
-      <Navbar />
-      <Hero />
-      <HowItWorks />
-      <Templates />
-      <WhatMakesItDifferent />
-      <DemoSection />
+      <LandingNav profile={profile} />
+
+      {/* Returning user: show welcome + dashboard, then rest of page */}
+      {profile ? (
+        <>
+          <WelcomeBack profile={profile} books={books} />
+          <DemoSection />
+        </>
+      ) : (
+        <>
+          <Hero />
+          <HowItWorks />
+          <Templates />
+          <WhatMakesItDifferent />
+          <DemoSection />
+        </>
+      )}
+
       <Footer />
     </main>
   );
