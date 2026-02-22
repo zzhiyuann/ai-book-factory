@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ClientLayout } from "@/components/client-layout";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-paper text-ink font-sans antialiased">
-        {children}
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );
