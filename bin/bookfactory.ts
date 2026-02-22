@@ -81,9 +81,10 @@ topics
 topics
   .command("recommend")
   .description("Get AI-powered topic recommendations")
-  .action(async () => {
+  .option("--add", "Auto-add all recommendations to backlog")
+  .action(async (options) => {
     const { runTopicsRecommend } = await import("../src/cli/topics.js");
-    await runTopicsRecommend();
+    await runTopicsRecommend(options);
   });
 
 // ── config ──
@@ -140,12 +141,10 @@ program
 // ── schedule ──
 program
   .command("schedule")
-  .description("Set up automated book generation (Phase 3)")
+  .description("Set up automated book generation (launchd/cron)")
   .action(async () => {
-    const { log } = await import("../src/utils/logger.js");
-    log.info("Schedule system will be available in Phase 3.");
-    log.info("For now, use cron or launchd manually:");
-    console.log("  bookfactory generate --non-interactive");
+    const { runSchedule } = await import("../src/schedule/scheduler.js");
+    await runSchedule();
   });
 
 program.parse();

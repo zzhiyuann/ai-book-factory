@@ -8,6 +8,8 @@ import { buildPrompt } from "../core/prompt-builder.js";
 import { runClaude, isLocked } from "../core/claude-runner.js";
 import { formatBook } from "../format/converter.js";
 import { getDeliveryPlugin } from "../delivery/registry.js";
+import { buildKnowledgeContext } from "../topics/knowledge-graph.js";
+import { extractAndRecord } from "../topics/extractor.js";
 import { BOOKS_DIR } from "../utils/constants.js";
 
 export interface GenerateOptions {
@@ -71,12 +73,16 @@ export async function runGenerate(
   // Build conversion command
   const conversionCmd = `bookfactory format "${outputPath}"`;
 
+  // Build knowledge context from previous books
+  const knowledgeContext = buildKnowledgeContext();
+
   // Assemble prompt
   const prompt = buildPrompt({
     profile,
     config,
     template,
     topic,
+    topicContext: knowledgeContext || undefined,
     outputPath,
     conversionCommand: conversionCmd,
   });
@@ -162,6 +168,12 @@ After saving, confirm the file has been written.`;
       }
     } catch (err) {
       log.warn(`Format/delivery issue: ${err}`);
+    }
+    // Update knowledge graph
+    try {
+      await extractAndRecord(outputPath, topic, templateName);
+    } catch {
+      log.warn("Knowledge graph update skipped.");
     }
   } else {
     log.warn(`Expected output file not found: ${outputPath}`);

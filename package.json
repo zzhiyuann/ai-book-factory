@@ -6,6 +6,12 @@
   "bin": {
     "bookfactory": "./dist/bin/bookfactory.js"
   },
+  "files": [
+    "dist",
+    "styles",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx bin/bookfactory.ts",
@@ -19,8 +25,14 @@
     "claude",
     "generation",
     "personalized",
-    "learning"
+    "learning",
+    "cli"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ai-book-factory/ai-book-factory.git"
+  },
+  "homepage": "https://github.com/ai-book-factory/ai-book-factory#readme",
   "author": "",
   "license": "MIT",
   "engines": {
@@ -33,6 +45,9 @@
     "marked": "^15.0.0",
     "chalk": "^5.4.0",
     "ora": "^8.2.0"
+  },
+  "optionalDependencies": {
+    "nodemailer": "^6.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

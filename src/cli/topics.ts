@@ -100,10 +100,36 @@ export async function runTopicsRemove(id: string): Promise<void> {
   log.success(`Removed topic: "${removed.title}"`);
 }
 
-export async function runTopicsRecommend(): Promise<void> {
-  log.info("Topic recommendations require the AI recommender (Phase 2).");
-  log.info("For now, add topics manually:");
-  console.log(`  ${chalk.cyan('bookfactory topics add "Topic Name" --tier 1')}`);
+export async function runTopicsRecommend(options: { add?: boolean } = {}): Promise<void> {
+  const { isInitialized } = await import("../profile/manager.js");
+  if (!isInitialized()) {
+    log.error('Not initialized. Run "bookfactory init" first.');
+    process.exit(1);
+  }
+
+  const { getRecommendations, printRecommendations } = await import("../topics/recommender.js");
+  const recs = await getRecommendations();
+  printRecommendations(recs);
+
+  // Optionally auto-add to backlog
+  if (options.add && recs.length > 0) {
+    const backlog = loadBacklog();
+    for (const r of recs) {
+      const tierMap = { primary: 1, adjacent: 2, serendipity: 3 };
+      const entry: TopicEntry = {
+        id: backlog.next_id++,
+        title: r.title,
+        description: r.why_for_you,
+        tier: tierMap[r.category] || 2,
+        status: "pending",
+        source: r.category === "serendipity" ? "serendipity" : "ai",
+        created: new Date().toISOString().split("T")[0],
+      };
+      backlog.topics.push(entry);
+    }
+    saveBacklog(backlog);
+    log.success(`Added ${recs.length} recommended topics to backlog.`);
+  }
 }
 
 export function getNextTopic(): TopicEntry | null {
