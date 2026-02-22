@@ -1,0 +1,42 @@
+{
+  "name": "ai-book-factory",
+  "version": "0.1.0",
+  "description": "AI-powered personalized book generation via Claude CLI",
+  "type": "module",
+  "bin": {
+    "bookfactory": "./dist/bin/bookfactory.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx bin/bookfactory.ts",
+    "start": "node dist/bin/bookfactory.js",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "book",
+    "claude",
+    "generation",
+    "personalized",
+    "learning"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "inquirer": "^12.4.0",
+    "yaml": "^2.7.0",
+    "marked": "^15.0.0",
+    "chalk": "^5.4.0",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
