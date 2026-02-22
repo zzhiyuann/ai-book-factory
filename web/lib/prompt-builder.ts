@@ -1,6 +1,7 @@
 /**
  * Web version of the prompt builder.
  * Replicates the 8-component system from the CLI, adapted for SaaS.
+ * Two-phase approach: research brief first, then full book generation.
  */
 
 export interface WebUserProfile {
@@ -76,7 +77,72 @@ const LANGUAGE_POLICIES: Record<string, string> = {
   es: "Escribe completamente en español. Los términos técnicos clave pueden incluir el original en inglés entre paréntesis.",
 };
 
-export function buildWebPrompt(req: GenerateRequest): string {
+/**
+ * Phase 1: Build research prompt.
+ * Asks Claude to produce a detailed research brief before writing the book.
+ */
+export function buildResearchPrompt(req: GenerateRequest): string {
+  const spec = TEMPLATE_SPECS[req.template];
+  const langPolicy = LANGUAGE_POLICIES[req.language] || LANGUAGE_POLICIES.en;
+
+  let userCtx = `Reader: ${req.user.name}`;
+  if (req.user.role) userCtx += `, ${req.user.role}`;
+  if (req.user.interests) userCtx += `. Interests: ${req.user.interests}`;
+  if (req.user.about) userCtx += `\n\nAbout the reader:\n${req.user.about}`;
+
+  return `You are a research assistant preparing a deep research brief for a book on: **${req.topic}**
+
+${userCtx}
+
+Language: ${langPolicy}
+
+Template: ${spec.display} (${spec.words.min.toLocaleString()}–${spec.words.max.toLocaleString()} words, ${spec.chapters.min}–${spec.chapters.max} chapters)
+
+## Your Task
+
+Produce a comprehensive RESEARCH BRIEF that will serve as the foundation for writing this book. Be rigorous, specific, and scholarly. This is NOT the book itself — this is the research groundwork.
+
+Include the following:
+
+### 1. Conceptual Landscape
+- The 10–15 most important concepts, theories, and frameworks in this domain
+- For each: the originator/researcher, year, key insight, and why it matters
+- How these concepts relate to and build on each other
+
+### 2. Key Researchers & Works
+- The 10–20 most influential researchers, their institutions, and seminal papers/books
+- Key debates and disagreements in the field
+- Recent developments (last 5 years) that have shifted understanding
+
+### 3. Practical Applications
+- Real-world case studies and examples that illustrate key concepts
+- Industry applications, organizational examples, or personal use cases
+- Decision frameworks practitioners actually use
+
+### 4. Common Misconceptions
+- What most people get wrong about this topic
+- Subtle errors even experts make
+- Counterintuitive findings that challenge conventional wisdom
+
+### 5. Connections to Reader's Context
+- How this topic specifically applies to the reader's role and interests
+- Unique angles that would be most valuable for THIS reader
+- Bridging concepts that connect this topic to the reader's existing knowledge
+
+### 6. Proposed Book Outline
+- ${spec.chapters.min}–${spec.chapters.max} chapter titles with brief descriptions
+- Key sections within each chapter
+- Estimated word counts per chapter (total target: ${spec.words.min.toLocaleString()}–${spec.words.max.toLocaleString()})
+- How chapters build on each other
+
+Be specific. Name real researchers, real theories, real papers. If you're unsure about a citation, say so — do not fabricate.
+USE TOKENS GENEROUSLY. This research brief should be thorough and detailed (3,000–5,000 words).`;
+}
+
+/**
+ * Phase 2: Build the full book generation prompt, incorporating the research brief.
+ */
+export function buildWritePrompt(req: GenerateRequest, researchBrief: string): string {
   const spec = TEMPLATE_SPECS[req.template];
   const langPolicy = LANGUAGE_POLICIES[req.language] || LANGUAGE_POLICIES.en;
 
@@ -93,7 +159,9 @@ A real book means:
 - Narrative exposition, concrete examples, case studies, frameworks
 - Real research findings, named theories, named researchers, specific studies
 - Counterarguments and limitations — not cheerleading
-- Decision procedures: "when you face X, do Y because Z"`);
+- Decision procedures: "when you face X, do Y because Z"
+- Be a rigorous research partner, not a cheerleader
+- Include contrarian views — not just mainstream consensus`);
 
   // 2. User Profile
   let profile = `# Who This Book Is For\n\n- **Name:** ${req.user.name}`;
@@ -108,15 +176,24 @@ A real book means:
   // 3. Language
   sections.push(`# Language\n${langPolicy}`);
 
-  // 4. Book Definition
+  // 4. Research Brief (the key differentiator)
+  sections.push(`# Research Brief
+
+The following research brief was prepared before writing. Use it as your foundation — incorporate the researchers, theories, frameworks, case studies, and outline described here. Expand on everything with full prose.
+
+<research_brief>
+${researchBrief}
+</research_brief>`);
+
+  // 5. Book Definition
   sections.push(`# Specifications
 
 - **Template:** ${spec.display}
 - **Target:** ${spec.words.min.toLocaleString()}–${spec.words.max.toLocaleString()} words
 - **Chapters:** ${spec.chapters.min}–${spec.chapters.max}
-- Before writing: output an outline with estimated word counts, then execute`);
+- Follow the outline from the research brief, expanding each chapter to full depth`);
 
-  // 5. Structure
+  // 6. Structure
   let structure = `# Chapter Structure\n\nEach chapter includes:\n`;
   for (const s of spec.sections) {
     structure += `- **${s}**\n`;
@@ -125,9 +202,6 @@ A real book means:
   structure += `\nAppendix: glossary, recommended reading (10+ annotated sources).`;
   sections.push(structure);
 
-  // 6. Topic
-  sections.push(`# Topic\n\n**Write a book on:** ${req.topic}`);
-
   // 7. Quality
   sections.push(`# Quality Checklist
 - Is this genuinely ${spec.words.min.toLocaleString()}+ words of substance?
@@ -135,13 +209,24 @@ A real book means:
 - Are there real citations, named theories, researchers?
 - Are there concrete examples, not just abstractions?
 - Is it personalized to the reader's context?
-- Does it include practical decision procedures?`);
+- Does it include practical decision procedures?
+- Does it challenge assumptions and include contrarian views?
+- Does every chapter change how the reader thinks?`);
 
   // 8. Output
   sections.push(`# Output Format
 Write the complete book in Markdown format. Start with the title as an H1 heading.
 Use H2 for chapters, H3 for sections within chapters.
-USE TOKENS GENEROUSLY. Quality and depth are the #1 priority.`);
+USE TOKENS GENEROUSLY. Quality and depth are the #1 priority.
+Do not summarize when you can explain in full. Do not abbreviate when you can elaborate.
+It is BETTER to write too much than too little.`);
 
   return sections.join("\n\n---\n\n");
+}
+
+/**
+ * Legacy single-phase prompt (kept for quick-read template where research phase is overkill).
+ */
+export function buildWebPrompt(req: GenerateRequest): string {
+  return buildWritePrompt(req, "No research brief available. Research thoroughly as you write.");
 }

@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  ArrowRight, ArrowLeft, Sparkles, Check, Loader2, Download, Eye,
+  ArrowRight, ArrowLeft, Sparkles, Check, Loader2, Download, Eye, Search,
 } from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { getProfile, saveProfile, saveBook, type StoredProfile } from "@/lib/storage";
 import { markdownToHtml } from "@/lib/markdown-to-html";
+import { countWords } from "@/lib/count-words";
 
 type Step = "about" | "topic" | "options" | "generating" | "done";
 
@@ -344,7 +345,7 @@ function OptionsStep({
   );
 }
 
-// ─── Step 4: Generating (real streaming) ───
+// ─── Step 4: Generating (two-phase: research → write) ───
 function GeneratingStep({
   user, options, onContent, onWordCount, onError, onDone,
 }: {
@@ -354,9 +355,11 @@ function GeneratingStep({
   onError: (e: string) => void;
   onDone: () => void;
 }) {
-  const [phase, setPhase] = useState("Connecting to AI...");
+  const [currentPhase, setCurrentPhase] = useState<"connecting" | "researching" | "writing">("connecting");
+  const [phaseDetail, setPhaseDetail] = useState("Connecting to AI...");
   const [preview, setPreview] = useState("");
   const [wc, setWc] = useState(0);
+  const [researchDone, setResearchDone] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -365,7 +368,7 @@ function GeneratingStep({
 
     async function generate() {
       try {
-        setPhase("Sending your profile and topic...");
+        setPhaseDetail("Sending your profile and topic...");
 
         const res = await fetch("/api/generate", {
           method: "POST",
@@ -385,8 +388,6 @@ function GeneratingStep({
           return;
         }
 
-        setPhase("AI is researching and writing...");
-
         const reader = res.body?.getReader();
         if (!reader) { onError("No response stream"); onDone(); return; }
 
@@ -405,31 +406,41 @@ function GeneratingStep({
             try {
               const data = JSON.parse(line.slice(6));
 
-              if (data.type === "text") {
+              if (data.type === "phase") {
+                if (data.phase === "researching") {
+                  setCurrentPhase("researching");
+                  setPhaseDetail("Deep researching your topic — theories, researchers, frameworks...");
+                } else if (data.phase === "writing") {
+                  setCurrentPhase("writing");
+                  setPhaseDetail("Writing your book based on research...");
+                }
+              } else if (data.type === "research_done") {
+                setResearchDone(true);
+                setPhaseDetail(`Research complete (${data.briefLength?.toLocaleString() || "?"} words of notes). Now writing...`);
+              } else if (data.type === "text") {
                 fullText += data.text;
-                const words = fullText.split(/\s+/).length;
+                const words = countWords(fullText);
                 setWc(words);
                 onWordCount(words);
-                // Show last 500 chars as preview
                 setPreview(fullText.slice(-500));
 
-                if (words < 500) setPhase("Writing introduction...");
-                else if (words < 2000) setPhase("Developing core chapters...");
-                else if (words < 5000) setPhase("Deep into the content...");
-                else if (words < 8000) setPhase("Writing advanced chapters...");
-                else setPhase("Wrapping up synthesis...");
+                if (words < 500) setPhaseDetail("Writing introduction...");
+                else if (words < 2000) setPhaseDetail("Developing core chapters...");
+                else if (words < 5000) setPhaseDetail("Deep into the content...");
+                else if (words < 8000) setPhaseDetail("Writing advanced chapters...");
+                else setPhaseDetail("Wrapping up synthesis...");
               } else if (data.type === "done") {
+                const finalWc = data.wordCount || countWords(fullText);
                 onContent(fullText);
-                onWordCount(data.wordCount || fullText.split(/\s+/).length);
+                onWordCount(finalWc);
 
-                // Save to localStorage
                 saveBook({
                   title: options.topic,
                   topic: options.topic,
                   template: options.template,
                   language: options.language,
                   content: fullText,
-                  wordCount: data.wordCount || fullText.split(/\s+/).length,
+                  wordCount: finalWc,
                 });
 
                 onDone();
@@ -448,14 +459,16 @@ function GeneratingStep({
 
         // Stream ended without "done" event
         if (fullText) {
+          const finalWc = countWords(fullText);
           onContent(fullText);
+          onWordCount(finalWc);
           saveBook({
             title: options.topic,
             topic: options.topic,
             template: options.template,
             language: options.language,
             content: fullText,
-            wordCount: fullText.split(/\s+/).length,
+            wordCount: finalWc,
           });
         }
         onDone();
@@ -468,19 +481,45 @@ function GeneratingStep({
     generate();
   }, []);
 
+  const isResearching = currentPhase === "researching";
+  const isWriting = currentPhase === "writing";
+
   return (
     <div className="text-center py-12">
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 mb-6">
-        <Loader2 className="w-8 h-8 text-accent animate-spin" />
+        {isResearching ? (
+          <Search className="w-8 h-8 text-accent animate-pulse" />
+        ) : (
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+        )}
       </div>
 
-      <h1 className="text-2xl font-bold tracking-tight mb-2">Writing your book</h1>
-      <p className="text-muted mb-2">{phase}</p>
-      <p className="text-sm font-mono text-accent">{wc.toLocaleString()} words</p>
+      <h1 className="text-2xl font-bold tracking-tight mb-2">
+        {isResearching ? "Researching your topic" : "Writing your book"}
+      </h1>
+      <p className="text-muted mb-2">{phaseDetail}</p>
+      {isWriting && <p className="text-sm font-mono text-accent">{wc.toLocaleString()} words</p>}
 
-      {/* Live preview */}
+      {/* Phase indicator */}
+      <div className="flex items-center justify-center gap-3 mt-6 mb-2">
+        <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
+          researchDone ? "bg-green-50 text-green-700" : isResearching ? "bg-accent/10 text-accent" : "bg-cream text-muted"
+        }`}>
+          {researchDone ? <Check className="w-3 h-3" /> : isResearching ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+          Research
+        </div>
+        <div className="w-6 h-px bg-border-light" />
+        <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
+          isWriting ? "bg-accent/10 text-accent" : "bg-cream text-muted"
+        }`}>
+          {isWriting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+          Writing
+        </div>
+      </div>
+
+      {/* Live preview (only during writing phase) */}
       {preview && (
-        <div className="mt-8 text-left bg-cream rounded-xl p-5 border border-border-light max-h-48 overflow-hidden relative">
+        <div className="mt-6 text-left bg-cream rounded-xl p-5 border border-border-light max-h-48 overflow-hidden relative">
           <div className="text-xs font-mono text-muted mb-2">LIVE PREVIEW</div>
           <div className="text-sm text-muted/80 leading-relaxed whitespace-pre-wrap font-serif">
             {preview.slice(-300)}
