@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowRight, ArrowLeft, Sparkles, Check, Loader2, Download, Eye, Search,
 } from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
-import { getProfile, saveProfile, saveBook, type StoredProfile } from "@/lib/storage";
+import { getProfile, saveProfile, saveBook } from "@/lib/storage";
 import { markdownToHtml } from "@/lib/markdown-to-html";
 import { countWords } from "@/lib/count-words";
 
@@ -32,6 +32,20 @@ const templateInfo = {
   "practical-guide": { label: "Practical Guide", words: "10–15K words", desc: "Hands-on, heavy on exercises" },
 };
 
+// Persist pending job ID across page refreshes
+function savePendingJob(bookId: string, topic: string, template: string) {
+  localStorage.setItem("bookfactory_pending_job", JSON.stringify({ bookId, topic, template }));
+}
+function getPendingJob(): { bookId: string; topic: string; template: string } | null {
+  try {
+    const raw = localStorage.getItem("bookfactory_pending_job");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function clearPendingJob() {
+  localStorage.removeItem("bookfactory_pending_job");
+}
+
 export default function GeneratePage() {
   const [step, setStep] = useState<Step>("about");
   const [user, setUser] = useState<UserInfo>({ name: "", role: "", interests: "", about: "" });
@@ -39,25 +53,28 @@ export default function GeneratePage() {
   const [bookContent, setBookContent] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [error, setError] = useState("");
+  const [resumedJobId, setResumedJobId] = useState<string | null>(null);
 
-  // Load profile from localStorage
+  // Load profile + check for pending jobs on mount
   useEffect(() => {
     const stored = getProfile();
     if (stored) {
-      setUser({
-        name: stored.name,
-        role: stored.role,
-        interests: stored.interests,
-        about: stored.about,
-      });
+      setUser({ name: stored.name, role: stored.role, interests: stored.interests, about: stored.about });
     }
-    // Read topic from URL
+
     const params = new URLSearchParams(window.location.search);
     const urlTopic = params.get("topic");
     if (urlTopic) setOptions((o) => ({ ...o, topic: urlTopic }));
+
+    // Resume pending job if exists
+    const pending = getPendingJob();
+    if (pending) {
+      setOptions((o) => ({ ...o, topic: pending.topic, template: pending.template as BookOptions["template"] }));
+      setResumedJobId(pending.bookId);
+      setStep("generating");
+    }
   }, []);
 
-  // Save profile when moving past "about" step
   function handleAboutNext() {
     saveProfile(user);
     setStep("topic");
@@ -73,40 +90,23 @@ export default function GeneratePage() {
           <AboutStep user={user} onChange={setUser} onNext={handleAboutNext} />
         )}
         {step === "topic" && (
-          <TopicStep
-            options={options}
-            user={user}
-            onChange={setOptions}
-            onBack={() => setStep("about")}
-            onNext={() => setStep("options")}
-          />
+          <TopicStep options={options} user={user} onChange={setOptions}
+            onBack={() => setStep("about")} onNext={() => setStep("options")} />
         )}
         {step === "options" && (
-          <OptionsStep
-            options={options}
-            onChange={setOptions}
-            onBack={() => setStep("topic")}
-            onGenerate={() => setStep("generating")}
-          />
+          <OptionsStep options={options} onChange={setOptions}
+            onBack={() => setStep("topic")} onGenerate={() => setStep("generating")} />
         )}
         {step === "generating" && (
           <GeneratingStep
-            user={user}
-            options={options}
-            onContent={setBookContent}
-            onWordCount={setWordCount}
-            onError={setError}
-            onDone={() => setStep("done")}
+            user={user} options={options}
+            resumeJobId={resumedJobId}
+            onContent={setBookContent} onWordCount={setWordCount}
+            onError={setError} onDone={() => { clearPendingJob(); setStep("done"); }}
           />
         )}
         {step === "done" && (
-          <DoneStep
-            user={user}
-            options={options}
-            content={bookContent}
-            wordCount={wordCount}
-            error={error}
-          />
+          <DoneStep user={user} options={options} content={bookContent} wordCount={wordCount} error={error} />
         )}
       </div>
     </div>
@@ -122,12 +122,9 @@ function ProgressBar({ step }: { step: Step }) {
     <div className="max-w-3xl mx-auto px-6 pt-8">
       <div className="flex items-center gap-2 mb-2">
         {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className={`h-1.5 rounded-full flex-1 transition-colors duration-500 ${
-              i <= Math.min(currentIdx, 2) ? "bg-accent" : "bg-border-light"
-            }`}
-          />
+          <div key={i} className={`h-1.5 rounded-full flex-1 transition-colors duration-500 ${
+            i <= Math.min(currentIdx, 2) ? "bg-accent" : "bg-border-light"
+          }`} />
         ))}
       </div>
       <div className="flex justify-between text-xs text-muted px-1">
@@ -150,10 +147,7 @@ function AboutStep({
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight mb-2">Tell us about yourself</h1>
-      <p className="text-muted mb-8">
-        The more we know, the more personalized your book. Only name is required.
-      </p>
-
+      <p className="text-muted mb-8">The more we know, the more personalized your book. Only name is required.</p>
       <div className="space-y-5">
         <Field label="Name" required>
           <input type="text" value={user.name}
@@ -183,7 +177,6 @@ function AboutStep({
             rows={4} className="input resize-y" />
         </div>
       </div>
-
       <div className="mt-8 flex justify-end">
         <button onClick={onNext} disabled={!user.name.trim()} className="btn-primary">
           Next: Pick a Topic <ArrowRight className="w-4 h-4" />
@@ -222,9 +215,7 @@ function TopicStep({
       if (data.recommendations?.length) {
         setSuggestions(data.recommendations.map((r: any) => r.title));
       }
-    } catch {
-      // keep default suggestions
-    }
+    } catch { /* keep defaults */ }
     setLoadingRecs(false);
   }
 
@@ -324,7 +315,6 @@ function OptionsStep({
         </div>
       </div>
 
-      {/* Summary card */}
       <div className="bg-cream rounded-xl p-5 border border-border-light mb-8">
         <div className="text-xs font-mono text-muted mb-2">PREVIEW</div>
         <div className="text-base font-semibold mb-1">{options.topic}</div>
@@ -345,144 +335,142 @@ function OptionsStep({
   );
 }
 
-// ─── Step 4: Generating (two-phase: research → write) ───
+// ─── Step 4: Generating (background + polling) ───
 function GeneratingStep({
-  user, options, onContent, onWordCount, onError, onDone,
+  user, options, resumeJobId, onContent, onWordCount, onError, onDone,
 }: {
   user: UserInfo; options: BookOptions;
+  resumeJobId: string | null;
   onContent: (c: string) => void;
   onWordCount: (n: number) => void;
   onError: (e: string) => void;
   onDone: () => void;
 }) {
-  const [currentPhase, setCurrentPhase] = useState<"connecting" | "researching" | "writing">("connecting");
-  const [phaseDetail, setPhaseDetail] = useState("Connecting to AI...");
+  const [status, setStatus] = useState<"researching" | "writing" | "done" | "error">("researching");
+  const [phaseDetail, setPhaseDetail] = useState("Starting generation...");
   const [preview, setPreview] = useState("");
   const [wc, setWc] = useState(0);
-  const [researchDone, setResearchDone] = useState(false);
+  const [bookId, setBookId] = useState<string | null>(resumeJobId);
   const started = useRef(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll for status
+  const pollStatus = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/generate/status?id=${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      setStatus(data.status);
+      setWc(data.wordCount || 0);
+      onWordCount(data.wordCount || 0);
+
+      if (data.preview) setPreview(data.preview);
+
+      // Update phase detail based on status
+      if (data.status === "researching") {
+        setPhaseDetail("Deep researching your topic — theories, researchers, frameworks...");
+      } else if (data.status === "writing") {
+        const w = data.wordCount || 0;
+        if (w < 500) setPhaseDetail("Writing introduction...");
+        else if (w < 2000) setPhaseDetail("Developing core chapters...");
+        else if (w < 5000) setPhaseDetail("Deep into the content...");
+        else if (w < 8000) setPhaseDetail("Writing advanced chapters...");
+        else setPhaseDetail("Wrapping up synthesis...");
+      }
+
+      if (data.status === "done") {
+        if (pollRef.current) clearInterval(pollRef.current);
+        onContent(data.content || "");
+        onWordCount(data.wordCount || countWords(data.content || ""));
+
+        // Save to localStorage
+        saveBook({
+          title: options.topic,
+          topic: options.topic,
+          template: options.template,
+          language: options.language,
+          content: data.content || "",
+          wordCount: data.wordCount || 0,
+        });
+        onDone();
+      } else if (data.status === "error") {
+        if (pollRef.current) clearInterval(pollRef.current);
+        onError(data.error || "Generation failed");
+        if (data.content) onContent(data.content);
+        onDone();
+      }
+    } catch {
+      // Network error during poll — keep trying
+    }
+  }, [options, onContent, onWordCount, onError, onDone]);
 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
 
-    async function generate() {
-      try {
-        setPhaseDetail("Sending your profile and topic...");
+    async function startOrResume() {
+      let id = resumeJobId;
 
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user,
-            topic: options.topic,
-            template: options.template,
-            language: options.language,
-          }),
-        });
+      if (!id) {
+        // Start new generation
+        try {
+          setPhaseDetail("Sending your profile and topic...");
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user,
+              topic: options.topic,
+              template: options.template,
+              language: options.language,
+            }),
+          });
 
-        if (!res.ok) {
-          const err = await res.json();
-          onError(err.error || "Generation failed");
+          if (!res.ok) {
+            const err = await res.json();
+            onError(err.error || "Generation failed");
+            onDone();
+            return;
+          }
+
+          const data = await res.json();
+          id = data.bookId;
+          setBookId(id);
+          setStatus(data.status);
+
+          // Persist job ID so we can resume after page refresh
+          savePendingJob(id!, options.topic, options.template);
+
+          if (data.status === "researching") {
+            setPhaseDetail("Deep researching your topic — theories, researchers, frameworks...");
+          } else {
+            setPhaseDetail("Writing your book...");
+          }
+        } catch (err: any) {
+          onError(err.message || "Network error");
           onDone();
           return;
         }
-
-        const reader = res.body?.getReader();
-        if (!reader) { onError("No response stream"); onDone(); return; }
-
-        const decoder = new TextDecoder();
-        let fullText = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const data = JSON.parse(line.slice(6));
-
-              if (data.type === "phase") {
-                if (data.phase === "researching") {
-                  setCurrentPhase("researching");
-                  setPhaseDetail("Deep researching your topic — theories, researchers, frameworks...");
-                } else if (data.phase === "writing") {
-                  setCurrentPhase("writing");
-                  setPhaseDetail("Writing your book based on research...");
-                }
-              } else if (data.type === "research_done") {
-                setResearchDone(true);
-                setPhaseDetail(`Research complete (${data.briefLength?.toLocaleString() || "?"} words of notes). Now writing...`);
-              } else if (data.type === "text") {
-                fullText += data.text;
-                const words = countWords(fullText);
-                setWc(words);
-                onWordCount(words);
-                setPreview(fullText.slice(-500));
-
-                if (words < 500) setPhaseDetail("Writing introduction...");
-                else if (words < 2000) setPhaseDetail("Developing core chapters...");
-                else if (words < 5000) setPhaseDetail("Deep into the content...");
-                else if (words < 8000) setPhaseDetail("Writing advanced chapters...");
-                else setPhaseDetail("Wrapping up synthesis...");
-              } else if (data.type === "done") {
-                const finalWc = data.wordCount || countWords(fullText);
-                onContent(fullText);
-                onWordCount(finalWc);
-
-                saveBook({
-                  title: options.topic,
-                  topic: options.topic,
-                  template: options.template,
-                  language: options.language,
-                  content: fullText,
-                  wordCount: finalWc,
-                });
-
-                onDone();
-                return;
-              } else if (data.type === "error") {
-                onError(data.error);
-                if (fullText) { onContent(fullText); }
-                onDone();
-                return;
-              }
-            } catch {
-              // skip unparseable lines
-            }
-          }
-        }
-
-        // Stream ended without "done" event
-        if (fullText) {
-          const finalWc = countWords(fullText);
-          onContent(fullText);
-          onWordCount(finalWc);
-          saveBook({
-            title: options.topic,
-            topic: options.topic,
-            template: options.template,
-            language: options.language,
-            content: fullText,
-            wordCount: finalWc,
-          });
-        }
-        onDone();
-      } catch (err: any) {
-        onError(err.message || "Network error");
-        onDone();
+      } else {
+        setPhaseDetail("Reconnecting to your book generation...");
       }
+
+      // Start polling every 3 seconds
+      pollRef.current = setInterval(() => pollStatus(id!), 3000);
+      // Also poll immediately
+      pollStatus(id!);
     }
 
-    generate();
+    startOrResume();
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, []);
 
-  const isResearching = currentPhase === "researching";
-  const isWriting = currentPhase === "writing";
+  const isResearching = status === "researching";
+  const isWriting = status === "writing";
 
   return (
     <div className="text-center py-12">
@@ -503,9 +491,9 @@ function GeneratingStep({
       {/* Phase indicator */}
       <div className="flex items-center justify-center gap-3 mt-6 mb-2">
         <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
-          researchDone ? "bg-green-50 text-green-700" : isResearching ? "bg-accent/10 text-accent" : "bg-cream text-muted"
+          isWriting ? "bg-green-50 text-green-700" : isResearching ? "bg-accent/10 text-accent" : "bg-cream text-muted"
         }`}>
-          {researchDone ? <Check className="w-3 h-3" /> : isResearching ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+          {isWriting ? <Check className="w-3 h-3" /> : isResearching ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
           Research
         </div>
         <div className="w-6 h-px bg-border-light" />
@@ -517,7 +505,13 @@ function GeneratingStep({
         </div>
       </div>
 
-      {/* Live preview (only during writing phase) */}
+      {/* Safe to leave message */}
+      <p className="text-xs text-muted/60 mt-4">
+        You can close this page — your book will keep generating in the background.
+        <br />Come back anytime to check progress.
+      </p>
+
+      {/* Live preview */}
       {preview && (
         <div className="mt-6 text-left bg-cream rounded-xl p-5 border border-border-light max-h-48 overflow-hidden relative">
           <div className="text-xs font-mono text-muted mb-2">LIVE PREVIEW</div>
@@ -538,7 +532,6 @@ function DoneStep({
   user: UserInfo; options: BookOptions; content: string; wordCount: number; error: string;
 }) {
   const [showReader, setShowReader] = useState(false);
-
   const filename = options.topic.replace(/\s+/g, "_");
 
   function download(format: "html" | "md" | "pdf") {
@@ -546,9 +539,7 @@ function DoneStep({
       const blob = new Blob([content], { type: "text/markdown" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `${filename}.md`;
-      a.click();
+      a.href = url; a.download = `${filename}.md`; a.click();
       URL.revokeObjectURL(url);
       return;
     }
@@ -557,24 +548,15 @@ function DoneStep({
     const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${options.topic}</title><style>${css}</style></head><body>${markdownToHtml(content)}</body></html>`;
 
     if (format === "pdf") {
-      // Open styled HTML in new tab — user can Ctrl/Cmd+P to print/save as PDF
       const win = window.open("", "_blank");
-      if (win) {
-        win.document.write(htmlContent);
-        win.document.close();
-        // Auto-trigger print dialog after a brief pause
-        setTimeout(() => win.print(), 500);
-      }
+      if (win) { win.document.write(htmlContent); win.document.close(); setTimeout(() => win.print(), 500); }
       return;
     }
 
-    // HTML download
     const blob = new Blob([htmlContent], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `${filename}.html`;
-    a.click();
+    a.href = url; a.download = `${filename}.html`; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -607,10 +589,8 @@ function DoneStep({
             <button onClick={() => download("pdf")} className="btn-ghost text-xs">PDF</button>
           </div>
         </div>
-        <article
-          className="prose prose-lg font-serif"
-          dangerouslySetInnerHTML={{ __html: markdownToHtml(content) }}
-        />
+        <article className="prose prose-lg font-serif"
+          dangerouslySetInnerHTML={{ __html: markdownToHtml(content) }} />
       </div>
     );
   }
@@ -626,15 +606,13 @@ function DoneStep({
         <span className="font-medium text-ink">{options.topic}</span>
       </p>
       <p className="text-sm font-mono text-muted mb-8">
-        {wordCount.toLocaleString()} words · {templateInfo[options.template].label}
+        {wordCount.toLocaleString()} words · {templateInfo[options.template]?.label || options.template}
       </p>
 
-      {/* Primary action */}
       <button onClick={() => setShowReader(true)} className="btn-primary mb-6">
         <Eye className="w-4 h-4" /> Read Now
       </button>
 
-      {/* Download options */}
       <div className="mb-10">
         <p className="text-xs text-muted mb-3">Download as</p>
         <div className="flex items-center justify-center gap-3">
@@ -665,7 +643,7 @@ function DoneStep({
   );
 }
 
-// ─── Shared components ───
+// ─── Shared ───
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
